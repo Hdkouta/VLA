@@ -118,8 +118,19 @@ def main():
     dev_list = ctx.query_devices()
     dev_count = dev_list.get_count()
 
+    print(f"--- 検出デバイス一覧 ({dev_count}台) ---")
+    for i in range(dev_count):
+        try:
+            d = dev_list.get_device_by_index(i)
+            info = d.get_device_info()
+            print(f"[{i}] name={info.get_name()}, SN={info.get_serial_number()}, "
+                  f"uid={info.get_uid()}, conn={info.get_connection_type()}")
+        except Exception as e:
+            print(f"[{i}] 情報取得に失敗: {e}")
+
     if dev_count < 2:
         print(f"エラー: 2台のカメラが必要です（検出数: {dev_count}台）")
+        print("上記に表示されたSN以外のカメラが未認識です。USB接続/電源/ポートを確認してください。")
         return
 
     cameras = []
@@ -128,8 +139,8 @@ def main():
         dev = dev_list.get_device_by_index(i)
         try:
             cam = setup_camera(dev)
-        except OBError as e:
-            print(f"カメラ {i} の起動に失敗: {e}")
+        except Exception as e:
+            print(f"カメラ index={i} の起動に失敗: {type(e).__name__}: {e}")
             for c in cameras:
                 c["pipeline"].stop()
             return
