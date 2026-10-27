@@ -1,21 +1,40 @@
 To Do リストを更新しました
 
-0番も1番も情報取得と open に失敗しているので、片方のカメラの問題ではありません。SDK が USB を開けない状態で、Python から見えているのに触れない、という症状です。次の順で確認してください。
+Read 
 
-1. **掴んでいるプロセスの解放**:
-   ```powershell
-   Get-Process python, OrbbecViewer, pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
-   ```
-   VS Code の Python デバッグセッションや、Jupyter のカーネルが残っていることもあります。VS Code のターミナルとデバッグを全て閉じてください。
-2. **Orbbec Viewer で2台とも映るか確認**:
-   - 映らない場合は、ドライバかファームウェアの問題です。Viewer を入れ直すとドライバも入ります。
-   - 映る場合は、Viewer を閉じてから Python を再実行してください。
-3. **ドライバの確認**:
-   ```powershell
-   Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -match "Orbbec|Gemini" } | Format-Table FriendlyName, Status, Class
-   ```
-   `Status` が `Error` の場合や、`Class` が `Unknown` の場合はドライバ未適用です。
-4. **ポートの変更**: 本体の背面 USB3 ポートに直挿しします。ハブや前面ポートは避けてください。
-5. **SDK との整合**: `pip show pyorbbecsdk` でバージョンを確認します。Gemini 335 系は新しい `pyorbbecsdk`(v2 系)が必要です。古い版では open に失敗することがあります。
+Ubuntu 向けに置き換えた手順です。
 
-カメラの型番(Gemini 2 / 335 / 335L など)と、手順3の出力、`pip show pyorbbecsdk` の結果を教えてください。それで原因を絞り込みます。
+1. **掴んでいるプロセスの解放**(Python や Viewer の終了):
+   ```bash
+   pkill -f python; pkill -f OrbbecViewer
+   # 掴んでいるプロセスの特定
+   lsof /dev/bus/usb/*/* 2>/dev/null | grep -i python
+   ```
+2. **USB 認識の確認**(Orbbec のベンダー ID は 2bc5):
+   ```bash
+   lsusb | grep -i 2bc5
+   lsusb -t   # USB3(5000M)か USB2(480M)かを確認
+   ```
+3. **権限(udev ルール)**: Ubuntu で open に失敗する最大の原因です。
+   ```bash
+   # SDK 付属のスクリプトを使う場合(pyorbbecsdk のリポジトリ内)
+   sudo bash ./scripts/install_udev_rules.sh
+   # 手動の場合
+   echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/99-obsensor-libusb.rules
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   ```
+   実行後に USB を抜き差ししてください。
+4. **ユーザーグループ**:
+   ```bash
+   sudo usermod -aG plugdev $USER   # 反映にはログアウトと再ログインが必要
+   ```
+5. **カーネルログ**(接続時のエラーを確認):
+   ```bash
+   sudo dmesg | grep -iE "usb|orbbec|uvc" | tail -30
+   ```
+6. **SDK のバージョン**:
+   ```bash
+   pip show pyorbbecsdk
+   ```
+
+2台とも open に失敗している場合は、手順3の udev ルールが未設定の可能性が高いです。`lsusb` の出力と `dmesg` の結果を貼ってください。
