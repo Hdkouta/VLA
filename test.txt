@@ -1,40 +1,31 @@
 To Do リストを更新しました
 
-Read 
+カメラは Device 004 と 005 で認識されています。バス番号が不明なので、次で実際のデバイスファイルを確認してください。
 
-Ubuntu 向けに置き換えた手順です。
+```bash
+lsusb | grep -i 2bc5
+```
 
-1. **掴んでいるプロセスの解放**(Python や Viewer の終了):
-   ```bash
-   pkill -f python; pkill -f OrbbecViewer
-   # 掴んでいるプロセスの特定
-   lsof /dev/bus/usb/*/* 2>/dev/null | grep -i python
-   ```
-2. **USB 認識の確認**(Orbbec のベンダー ID は 2bc5):
-   ```bash
-   lsusb | grep -i 2bc5
-   lsusb -t   # USB3(5000M)か USB2(480M)かを確認
-   ```
-3. **権限(udev ルール)**: Ubuntu で open に失敗する最大の原因です。
-   ```bash
-   # SDK 付属のスクリプトを使う場合(pyorbbecsdk のリポジトリ内)
-   sudo bash ./scripts/install_udev_rules.sh
-   # 手動の場合
-   echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/99-obsensor-libusb.rules
-   sudo udevadm control --reload-rules && sudo udevadm trigger
-   ```
-   実行後に USB を抜き差ししてください。
-4. **ユーザーグループ**:
-   ```bash
-   sudo usermod -aG plugdev $USER   # 反映にはログアウトと再ログインが必要
-   ```
-5. **カーネルログ**(接続時のエラーを確認):
-   ```bash
-   sudo dmesg | grep -iE "usb|orbbec|uvc" | tail -30
-   ```
-6. **SDK のバージョン**:
-   ```bash
-   pip show pyorbbecsdk
-   ```
+`Bus 002 Device 004` のように出ます。その番号を使って、権限を確認します。
 
-2台とも open に失敗している場合は、手順3の udev ルールが未設定の可能性が高いです。`lsusb` の出力と `dmesg` の結果を貼ってください。
+```bash
+ls -l /dev/bus/usb/002/004 /dev/bus/usb/002/005   # 002 は実際のバス番号に置き換える
+```
+
+見方は次のとおりです。
+
+- `crw-rw-r-- root root` の場合は、一般ユーザーに書き込み権限がなく、open に失敗します。udev ルールを追加してください。
+  ```bash
+  echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", MODE="0666"' | sudo tee /etc/udev/rules.d/99-obsensor-libusb.rules
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+  実行後に USB を抜き差しします。デバイス番号が変わるのが正常です。
+- `crw-rw-rw-` の場合は、権限は問題ありません。次を確認します。
+  ```bash
+  lsusb -t                              # 480M なら USB2.0 接続で、帯域や電力が不足している
+  sudo dmesg | tail -30                 # 接続時のエラーの確認
+  ```
+
+一時的に切り分けるなら、ルール追加の前に `sudo python dual_gemini_fast_capture.py` で動くか試す方法もあります。動けば、原因は権限で確定です。ただし venv の場合は `sudo $(which python) dual_gemini_fast_capture.py` と書いてください。
+
+`ls -l` と `lsusb -t` の結果を貼ってください。
