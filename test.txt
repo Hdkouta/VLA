@@ -1,31 +1,42 @@
 To Do リストを更新しました
 
-カメラは Device 004 と 005 で認識されています。バス番号が不明なので、次で実際のデバイスファイルを確認してください。
+Searched for regex `pyorbbecsdk|LD_LIBRARY_PATH.*(orbbec|Orbbec)|99-obsensor|OrbbecSDK|export .*ORBBEC` (`**/minebea-hands-physicalAI-main/**/*.{md,sh,py,txt}`), 3 results
+
+このリポジトリには、カメラ用の環境変数や設定コマンドの記載はありません。`pyorbbecsdk` を `pip` で入れた場合は、通常は環境変数は不要です。
+
+## 通常（pipで入れた場合）
+
+環境変数は不要です。代わりに次の2つを確認します。
 
 ```bash
-lsusb | grep -i 2bc5
+# カメラにアクセスできるよう video グループに入れる（再ログインが必要）
+sudo usermod -aG video $USER
+
+# Orbbec用のudevルールを入れる（OrbbecSDKに同梱の rules ファイルを使う）
+sudo cp 99-obsensor-libusb.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-`Bus 002 Device 004` のように出ます。その番号を使って、権限を確認します。
+`99-obsensor-libusb.rules` は、OrbbecSDK または `pyorbbecsdk` のリポジトリ（`scripts/` 内）にあります。
+
+## SDKをソースからビルドして使う場合
+
+ビルドした `pyorbbecsdk` を、Pythonが見つけられるように指定します。パスは自分の配置場所に合わせて変えてください。
 
 ```bash
-ls -l /dev/bus/usb/002/004 /dev/bus/usb/002/005   # 002 は実際のバス番号に置き換える
+export PYTHONPATH=$PYTHONPATH:~/pyorbbecsdk/install/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/pyorbbecsdk/install/lib/
 ```
 
-見方は次のとおりです。
+毎回入力しないよう、`~/.bashrc` に追記しても構いません。
 
-- `crw-rw-r-- root root` の場合は、一般ユーザーに書き込み権限がなく、open に失敗します。udev ルールを追加してください。
-  ```bash
-  echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", MODE="0666"' | sudo tee /etc/udev/rules.d/99-obsensor-libusb.rules
-  sudo udevadm control --reload-rules && sudo udevadm trigger
-  ```
-  実行後に USB を抜き差しします。デバイス番号が変わるのが正常です。
-- `crw-rw-rw-` の場合は、権限は問題ありません。次を確認します。
-  ```bash
-  lsusb -t                              # 480M なら USB2.0 接続で、帯域や電力が不足している
-  sudo dmesg | tail -30                 # 接続時のエラーの確認
-  ```
+## 確認
 
-一時的に切り分けるなら、ルール追加の前に `sudo python dual_gemini_fast_capture.py` で動くか試す方法もあります。動けば、原因は権限で確定です。ただし venv の場合は `sudo $(which python) dual_gemini_fast_capture.py` と書いてください。
+```bash
+python3 -c "import pyorbbecsdk; print(pyorbbecsdk.__file__)"
+lsusb | grep -i orbbec
+```
 
-`ls -l` と `lsusb -t` の結果を貼ってください。
+インポートに失敗する場合は `PYTHONPATH`、デバイスが見えない場合は udev と `video` グループが原因です。
+
+どの方法で `pyorbbecsdk` を入れたかを教えてもらえれば、それに合わせたコマンドに絞ります。
