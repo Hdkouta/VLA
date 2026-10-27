@@ -136,11 +136,11 @@ def main():
     cameras = []
     print("--- 2台のカメラをセットアップ中 ---")
     for i in range(2):
-        dev = dev_list.get_device_by_index(i)
         try:
+            dev = dev_list.get_device_by_index(i)
             cam = setup_camera(dev)
         except Exception as e:
-            print(f"カメラ index={i} の起動に失敗: {type(e).__name__}: {e}")
+            print(f"カメラ index={i} のオープンに失敗: {type(e).__name__}: {e}")
             for c in cameras:
                 c["pipeline"].stop()
             return
