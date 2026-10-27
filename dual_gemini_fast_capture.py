@@ -47,7 +47,11 @@ def setup_camera(device):
     
     # デフォルトのストリームプロファイルを使用する
     # 無理にRGBや特定の解像度を指定せず、カメラが安定して出せるフォーマットを使用
-    color_profile = color_profiles.get_default_video_stream_profile()
+    # 2台同時の USB 帯域対策として低解像度を優先し、無ければ既定にフォールバック
+    try:
+        color_profile = color_profiles.get_video_stream_profile(640, 480, OBFormat.MJPG, FPS)
+    except OBError:
+        color_profile = color_profiles.get_default_video_stream_profile()
     
     # 取得したプロファイルの情報を表示（デバッグ用）
     actual_width = color_profile.get_width()
@@ -122,7 +126,13 @@ def main():
     print("--- 2台のカメラをセットアップ中 ---")
     for i in range(2):
         dev = dev_list.get_device_by_index(i)
-        cam = setup_camera(dev)
+        try:
+            cam = setup_camera(dev)
+        except OBError as e:
+            print(f"カメラ {i} の起動に失敗: {e}")
+            for c in cameras:
+                c["pipeline"].stop()
+            return
         os.makedirs(cam["dir"], exist_ok=True)
         cameras.append(cam)
 
@@ -140,7 +150,11 @@ def main():
             timestamp_ms = int(time.time() * 1000)
 
             for cam in cameras:
-                frames = cam["pipeline"].wait_for_frames(50)
+                try:
+                    frames = cam["pipeline"].wait_for_frames(50)
+                except OBError as e:
+                    print(f"[{cam['serial']}] OBError: {e}")
+                    continue
                 if frames is None:
                     continue
 
